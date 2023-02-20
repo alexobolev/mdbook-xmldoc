@@ -4,4 +4,5 @@
 .vs/
 
 target/
+temp/
 Cargo.lock
