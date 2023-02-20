@@ -1,0 +1,11 @@
+[package]
+name = "mdbook-xmldoc"
+version = "0.1.0"
+authors = ["Alex Sobolev <code.sobolev@gmail.com>"]
+description = "An mdBook preprocessor for embedding (awfully) simplistic XML documentation."
+license = "MPL-2.0"
+homepage = "https://github.com/alexobolev/mdbook-xmldoc"
+repository = "https://github.com/alexobolev/mdbook-xmldoc"
+edition = "2021"
+
+[dependencies]

@@ -1,0 +1,7 @@
+.fleet/
+.idea/
+.vscode/
+.vs/
+
+target/
+Cargo.lock
