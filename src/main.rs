@@ -13,7 +13,7 @@ use std::process;
 
 use clap::{Parser, Subcommand};
 
-// mod model;
+mod model;
 mod schema;
 
 
