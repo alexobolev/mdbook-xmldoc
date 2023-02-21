@@ -3,7 +3,8 @@
 //! # mdbook-xmldoc
 //!
 //! This binary crate provides a joint utility which serves both as a standalone
-//! tool and a preprocessor for the `mdBook` static documentation generator.
+//! tool and an `mdBook` preprocessor for generating simplistic static XML document
+//! reference in an opinionated markdown format.
 
 
 use std::fs::File;
@@ -29,7 +30,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Checks that a given file is a valid taglist .yml file.
+    /// Checks that a given file is a valid .yml tag list.
     Check { file: PathBuf },
     /// Generates a pure markdown file from the given file.
     Generate { file: PathBuf, output: Option<PathBuf> },
@@ -51,6 +52,7 @@ fn main() {
         .chain(std::io::stdout());
 
     // TODO: Route warn and error logs to stderr.
+    // TODO: Set up colored output when not piping out.
 
     if let Err(err) = log_dispatch.apply() {
         eprintln!("failed to configure log: {}", err.to_string());
@@ -85,11 +87,14 @@ fn exec_check(path: &Path) -> bool {
     let root: schema::FileRoot = match serde_yaml::from_reader(&mut reader) {
         Ok(root) => root,
         Err(err) => {
-            log::error!("failed to parse taglist from source file '{}'", path.to_string_lossy());
+            log::error!("failed to parse tag list from source file '{}'", path.to_string_lossy());
             log::error!("error: {}", err.to_string());
             return false;
         }
     };
+
+    // TODO: Check for logic errors in a valid schema.
+    // TODO: Check for non-fatal issues, i.e. warnings.
 
     log::info!("file ok");
     return true;
