@@ -6,6 +6,8 @@
 //! tool and an `mdBook` preprocessor for generating simplistic static XML document
 //! reference in an opinionated markdown format.
 
+mod model;
+mod schema;
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -13,8 +15,7 @@ use std::process;
 
 use clap::{Parser, Subcommand};
 
-mod model;
-mod schema;
+use crate::model::loader;
 
 
 #[derive(Debug, Parser)]
@@ -83,7 +84,6 @@ fn exec_check(path: &Path) -> bool {
         }
     };
 
-    #[allow(unused_variables)]
     let root: schema::FileRoot = match serde_yaml::from_reader(&mut reader) {
         Ok(root) => root,
         Err(err) => {
@@ -93,9 +93,25 @@ fn exec_check(path: &Path) -> bool {
         }
     };
 
-    // TODO: Check for logic errors in a valid schema.
-    // TODO: Check for non-fatal issues, i.e. warnings.
+    let warning_count;
+    match loader::load_from(root) {
+        Ok(loader::LoadDigest { warnings, .. }) => {
+            warning_count = warnings.len();
+            for warning in &warnings {
+                log::warn!("model warning: {warning}");
+            }
+        }
+        Err(err) => {
+            log::error!("failed to load model from deserialized schema '{}'", path.to_string_lossy());
+            log::error!("error: {:?}", err);
+            return false;
+        }
+    };
 
-    log::info!("file ok");
+    match warning_count {
+        0 => log::info!("file ok"),
+        _ => log::info!("file has warning(s): {warning_count}"),
+    };
+
     return true;
 }

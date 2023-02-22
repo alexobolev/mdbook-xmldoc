@@ -67,12 +67,23 @@ pub struct Attribute {
 /// Description of a tag (subject) which may be used within another tag (parent).
 #[derive(Debug, Default)]
 pub struct Child {
-    /// Unique identifier of the subject tag.
-    id: Uuid,
+    /// (Hopefully) resolved tag name reference.
+    reference: ChildInternal,
     /// Can the parent tag have no instances of the subject tag?
     is_optional: bool,
     /// Can the parent tag have multiple instances of the subject tag?
     is_repeatable: bool,
+}
+
+#[derive(Debug)]
+enum ChildInternal {
+    Resolved { id: Uuid },
+    Unresolved { name: CompactString },
+}
+impl Default for ChildInternal {
+    fn default() -> Self {
+        Self::Unresolved { name: "".into() }
+    }
 }
 
 
@@ -125,7 +136,8 @@ pub mod loader {
         tl_root.names.reserve(tag_count);
         tl_root.tags.reserve(tag_count);
 
-        if !tl_root.namespace.is_empty() || !tl_root.namespace.is_ascii() {
+        if tl_root.namespace.is_empty() || !tl_root.namespace.is_ascii() {
+            log::debug!("schema namespace must be a non-empty ascii sequence");
             tl_warnings.push(format!("schema namespace must be a non-empty ascii sequence"));
         }
 
@@ -170,7 +182,7 @@ pub mod loader {
                 tag_schema.children.unwrap_or_else(|| smallvec![]));
 
             if tl_root.tags.insert(tag.id.clone(), tag).is_some() {
-                panic!("generated internal tag uuid was not unique");
+                panic!("non-unique generated internal tag uuid?!");
             }
         }
 
@@ -184,9 +196,30 @@ pub mod loader {
         // At this point, we can use the uuid <-> name lookup
         // tables, which is needed for child processing.
 
+        for (parent_uuid, child_schemas) in children_temp {
+            let parent_model = tl_root.tags.get_mut(&parent_uuid)
+                .expect("failed to resolve an internal parent reference");
+            debug_assert!(parent_model.children.is_empty());
 
+            for child_schema in child_schemas {
+                let reference = match tl_root.names.get(&child_schema.r#ref) {
+                    Some(child_uuid) => ChildInternal::Resolved { id: *child_uuid },
+                    None => ChildInternal::Unresolved { name: child_schema.r#ref },
+                };
+                let child = Child {
+                    reference,
+                    is_optional: child_schema.optional.unwrap_or(false),
+                    is_repeatable: child_schema.multiple.unwrap_or(false),
+                };
 
-        todo!();
+                if let ChildInternal::Unresolved { name } = &child.reference {
+                    tl_warnings.push(format!("unresolved child reference: {}->{}", parent_model.name, name));
+                }
+
+                parent_model.children.push(child);
+            }
+        }
+
         Ok(LoadDigest { model: tl_root, warnings: tl_warnings })
     }
 }
