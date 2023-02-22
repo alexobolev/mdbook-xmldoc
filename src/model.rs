@@ -18,7 +18,7 @@ pub fn is_supported(version: &str) -> bool {
 
 
 /// Root structure of a mutable pre-processed tag list.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TagList {
     /// The XML namespace of all tags in this list.
     namespace: CompactString,
@@ -29,8 +29,10 @@ pub struct TagList {
 }
 
 /// Description of a tag.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Tag {
+    /// Internal identifier of this tag.
+    id: Uuid,
     /// Public tag name.
     name: CompactString,
     /// Mandatory description.
@@ -46,7 +48,7 @@ pub struct Tag {
 }
 
 /// Description of an allowed (or expected) tag attribute.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Attribute {
     /// Attribute name.
     name: CompactString,
@@ -57,13 +59,13 @@ pub struct Attribute {
     /// Flag showing whether the attribute can be omitted.
     is_optional: bool,
     /// What kind of value the schema expects this attribute to have?
-    expected_value: Option<String>,
+    expected_value: Option<CompactString>,
     /// The default value this tag would have if it `is_optional`.
-    default_value: Option<String>,
+    default_value: Option<CompactString>,
 }
 
 /// Description of a tag (subject) which may be used within another tag (parent).
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Child {
     /// Unique identifier of the subject tag.
     id: Uuid,
@@ -77,6 +79,7 @@ pub struct Child {
 
 /// Encapsulation of [`super::model`] loading logic.
 pub mod loader {
+    use smallvec::smallvec;
     use super::*;
 
 
@@ -86,6 +89,11 @@ pub mod loader {
         pub model: TagList,
         /// Non-fatal issues.
         pub warnings: SmallVec<[String; 4]>,
+    }
+    impl LoadDigest {
+        pub fn has_warnings(&self) -> bool {
+            !self.warnings.is_empty()
+        }
     }
 
     /// Possible fatal errors produced by [`load_from`].
@@ -117,10 +125,66 @@ pub mod loader {
         tl_root.names.reserve(tag_count);
         tl_root.tags.reserve(tag_count);
 
-        // Check the namespace (non-fatal).
         if !tl_root.namespace.is_empty() || !tl_root.namespace.is_ascii() {
             tl_warnings.push(format!("schema namespace must be a non-empty ascii sequence"));
         }
+
+        // Tags are processed in multiple steps to avoid name resolution conflicts.
+        //
+        // First, everything that we can map from schema to model without issue is processed.
+        //   During that process, all child relationships are stored in a temporary vector.
+        // Second, we pre-build a name lookup - it will not be affected by child vectors.
+        // Third, we process the temporary vector by mapping child tags into their parents.
+
+        let mut children_temp = HashMap::new();
+
+        debug_assert!(tl_root.names.is_empty());
+        for tag_schema in schema.tags {
+            let mut tag = Tag {
+                id: Uuid::new_v4(),
+                name: tag_schema.id,
+                description: tag_schema.description,
+                attributes: Default::default(),  // <- still need to process attributes
+                children: Default::default(),  // <- still need to process child tags
+                value: tag_schema.value,
+                example: tag_schema.example,
+            };
+
+            tag.attributes = tag_schema.attributes
+                .unwrap_or_else(|| smallvec![])
+                .into_iter()
+                .map(|attr_schema| {
+                    Attribute {
+                        name: attr_schema.id,
+                        short_description: attr_schema.brief,
+                        long_description: attr_schema.description,
+                        is_optional: attr_schema.optional.unwrap_or(false),
+                        expected_value: attr_schema.expected,
+                        default_value: attr_schema.default,
+                    }
+                })
+                .collect();
+
+            // Prepare children for the late processing.
+            children_temp.insert(tag.id.clone(),
+                tag_schema.children.unwrap_or_else(|| smallvec![]));
+
+            if tl_root.tags.insert(tag.id.clone(), tag).is_some() {
+                panic!("generated internal tag uuid was not unique");
+            }
+        }
+
+        debug_assert!(tl_root.names.is_empty());
+        for (uuid, tag) in &tl_root.tags {
+            if tl_root.names.insert(tag.name.clone(), uuid.clone()).is_some() {
+                panic!("non-unique name -> uuid mapping?!");
+            }
+        }
+
+        // At this point, we can use the uuid <-> name lookup
+        // tables, which is needed for child processing.
+
+
 
         todo!();
         Ok(LoadDigest { model: tl_root, warnings: tl_warnings })
