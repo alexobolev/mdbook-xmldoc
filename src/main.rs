@@ -56,7 +56,7 @@ fn main() {
     // TODO: Set up colored output when not piping out.
 
     if let Err(err) = log_dispatch.apply() {
-        eprintln!("failed to configure log: {}", err.to_string());
+        eprintln!("failed to configure log: {}", err);
         eprintln!("exiting...");
         process::exit(3);
     }
@@ -113,5 +113,5 @@ fn exec_check(path: &Path) -> bool {
         _ => log::info!("file has warning(s): {}", warning_count),
     };
 
-    return true;
+    true
 }

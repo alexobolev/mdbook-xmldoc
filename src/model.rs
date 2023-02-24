@@ -10,10 +10,7 @@ pub const VERSION: &str = "r1";
 /// Check if a schema version is supported by this identifier.
 pub fn is_supported(version: &str) -> bool {
     let lower = version.to_ascii_lowercase();
-    match lower.trim() {
-        VERSION => true,
-        _ => false,
-    }
+    matches!(lower.trim(), VERSION)
 }
 
 
@@ -138,7 +135,8 @@ pub mod loader {
 
         if tl_root.namespace.is_empty() || !tl_root.namespace.is_ascii() {
             log::debug!("schema namespace must be a non-empty ascii sequence");
-            tl_warnings.push(format!("schema namespace must be a non-empty ascii sequence"));
+            // TODO: Consider using CompactString for tl_warnings, or a Cow<String>.
+            tl_warnings.push(String::from("schema namespace must be a non-empty ascii sequence"));
         }
 
         // Tags are processed in multiple steps to avoid name resolution conflicts.
@@ -177,18 +175,16 @@ pub mod loader {
                 })
                 .collect();
 
-            // Prepare children for the late processing.
-            children_temp.insert(tag.id.clone(),
-                tag_schema.children.unwrap_or_else(|| smallvec![]));
+            children_temp.insert(tag.id, tag_schema.children.unwrap_or_else(|| smallvec![]));
 
-            if tl_root.tags.insert(tag.id.clone(), tag).is_some() {
+            if tl_root.tags.insert(tag.id, tag).is_some() {
                 panic!("non-unique generated internal tag uuid?!");
             }
         }
 
         debug_assert!(tl_root.names.is_empty());
         for (uuid, tag) in &tl_root.tags {
-            if tl_root.names.insert(tag.name.clone(), uuid.clone()).is_some() {
+            if tl_root.names.insert(tag.name.clone(), *uuid).is_some() {
                 panic!("non-unique name -> uuid mapping?!");
             }
         }
