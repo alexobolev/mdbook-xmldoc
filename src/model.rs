@@ -18,62 +18,62 @@ pub fn is_supported(version: &str) -> bool {
 #[derive(Debug, Default)]
 pub struct TagList {
     /// The XML namespace of all tags in this list.
-    namespace: CompactString,
+    pub namespace: CompactString,
     /// Mapping between tag names and internal ids.
-    names: HashMap<CompactString, Uuid>,
+    pub names: HashMap<CompactString, Uuid>,
     /// Tag descriptions within this list.
-    tags: HashMap<Uuid, Tag>,
+    pub tags: HashMap<Uuid, Tag>,
 }
 
 /// Description of a tag.
 #[derive(Debug, Default)]
 pub struct Tag {
     /// Internal identifier of this tag.
-    id: Uuid,
+    pub id: Uuid,
     /// Public tag name.
-    name: CompactString,
+    pub name: CompactString,
     /// Mandatory description.
-    description: String,
+    pub description: String,
     /// The attributes this tag may have.
-    attributes: SmallVec<[Attribute; 4]>,
+    pub attributes: SmallVec<[Attribute; 4]>,
     /// The child tags this tag may contain.
-    children: SmallVec<[Child; 4]>,
+    pub children: SmallVec<[Child; 4]>,
     /// The scalar value this tag may contain.
-    value: Option<String>,
+    pub value: Option<String>,
     /// An abstract XML example code demonstrating this tag.
-    example: Option<String>,
+    pub example: Option<String>,
 }
 
 /// Description of an allowed (or expected) tag attribute.
 #[derive(Debug, Default)]
 pub struct Attribute {
     /// Attribute name.
-    name: CompactString,
+    pub name: CompactString,
     /// Mandatory brief description.
-    short_description: CompactString,
+    pub short_description: CompactString,
     /// Optional long description (may have paragraphs).
-    long_description: Option<String>,
+    pub long_description: Option<String>,
     /// Flag showing whether the attribute can be omitted.
-    is_optional: bool,
+    pub is_optional: bool,
     /// What kind of value the schema expects this attribute to have?
-    expected_value: Option<CompactString>,
+    pub expected_value: Option<CompactString>,
     /// The default value this tag would have if it `is_optional`.
-    default_value: Option<CompactString>,
+    pub default_value: Option<CompactString>,
 }
 
 /// Description of a tag (subject) which may be used within another tag (parent).
 #[derive(Debug, Default)]
 pub struct Child {
     /// (Hopefully) resolved tag name reference.
-    reference: ChildInternal,
+    pub reference: ChildInternal,
     /// Can the parent tag have no instances of the subject tag?
-    is_optional: bool,
+    pub is_optional: bool,
     /// Can the parent tag have multiple instances of the subject tag?
-    is_repeatable: bool,
+    pub is_repeatable: bool,
 }
 
 #[derive(Debug)]
-enum ChildInternal {
+pub enum ChildInternal {
     Resolved { id: Uuid },
     Unresolved { name: CompactString },
 }
