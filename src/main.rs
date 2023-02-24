@@ -98,7 +98,7 @@ fn exec_check(path: &Path) -> bool {
         Ok(loader::LoadDigest { warnings, .. }) => {
             warning_count = warnings.len();
             for warning in &warnings {
-                log::warn!("model warning: {warning}");
+                log::warn!("model warning: {}", warning);
             }
         }
         Err(err) => {
@@ -110,7 +110,7 @@ fn exec_check(path: &Path) -> bool {
 
     match warning_count {
         0 => log::info!("file ok"),
-        _ => log::info!("file has warning(s): {warning_count}"),
+        _ => log::info!("file has warning(s): {}", warning_count),
     };
 
     return true;
