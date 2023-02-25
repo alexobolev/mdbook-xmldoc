@@ -6,6 +6,7 @@
 //! tool and an `mdBook` preprocessor for generating simplistic static XML document
 //! reference in an opinionated markdown format.
 
+mod generator;
 mod model;
 mod schema;
 
