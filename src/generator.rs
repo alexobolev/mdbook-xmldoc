@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::io;
 use std::fmt;
+use smallvec::SmallVec;
 
 use super::model;
 
@@ -31,14 +32,14 @@ impl fmt::Display for GeneratorError {
                     Some(desc) => f.write_fmt(format_args!(", description: {}", desc)),
                     None => Ok(()),
                 }
-            },
+            }
             GeneratorError::InternalInputOutput { inner, description } => {
                 f.write_fmt(format_args!("internal input/output error: {}", inner))?;
                 match description {
                     Some(desc) => f.write_fmt(format_args!(", description: {}", desc)),
                     None => Ok(()),
                 }
-            },
+            }
         }
     }
 }
@@ -84,7 +85,6 @@ impl HeaderLevel {
     pub fn next(&self) -> GeneratorResult<HeaderLevel> {
         Self::new(self.0 + 1)
     }
-
 }
 
 impl fmt::Display for HeaderLevel {
@@ -96,7 +96,7 @@ impl fmt::Display for HeaderLevel {
 
 /// Generate Markdown content into `formatter` from the `root` tag list using the given `options`.
 pub fn generate<'a>(root: &'a model::TagList, options: &'a GeneratorOptions,
-                formatter: &'a mut fmt::Formatter<'a>) -> GeneratorResult<()>
+                    formatter: &'a mut fmt::Formatter<'a>) -> GeneratorResult<()>
 {
     let context = Context {
         options,
@@ -128,6 +128,33 @@ pub fn generate<'a>(root: &'a model::TagList, options: &'a GeneratorOptions,
             context.write_paragraph(value)?;
         }
 
+        if !tag.children.is_empty() {
+            context.write_tag_subheader("Children")?;
+            for child in &tag.children {
+                match &child.reference {
+                    model::ChildInternal::Resolved { id } => {
+                        context.write_child_item(
+                            true,
+                            &root.namespace,
+                            &root.tags.get(id).unwrap().name,
+                            child.is_optional,
+                            child.is_repeatable,
+                        )?;
+                    },
+                    model::ChildInternal::Unresolved { name } => {
+                        context.write_child_item(
+                            false,
+                            &root.namespace,
+                            name,
+                            child.is_optional,
+                            child.is_repeatable,
+                        )?;
+                    },
+                };
+            }
+            context.write_newblock()?;
+        }
+
         // Parent block is always present.
         {
             context.write_tag_subheader("Parents")?;
@@ -137,15 +164,16 @@ pub fn generate<'a>(root: &'a model::TagList, options: &'a GeneratorOptions,
                         match root.tags.get(parent_uuid) {
                             Some(parent_tag) => {
                                 let name = parent_tag.name.as_str();
-                                context.write_tag_link(&root.namespace, name)?;
-                            },
+                                context.write_parent_item(&root.namespace, name)?;
+                            }
                             None => {
                                 log::warn!("failed to resolve parent name for {} -> {}", uuid, parent_uuid);
                                 continue 'parents;
                             }
                         };
                     }
-                },
+                    context.write_newblock()?;
+                }
                 None => context.write_paragraph("This tag has no possible parents!")?,
             }
         }
@@ -196,12 +224,12 @@ impl<'a> Context<'a> {
     }
 
     pub fn write_attribute(&self,
-        name: &str,
-        brief: &str,
-        desc: Option<&str>,
-        optional: bool,
-        expected: Option<&str>,
-        r#default: Option<&str>) -> GeneratorResult<()>
+                           name: &str,
+                           brief: &str,
+                           desc: Option<&str>,
+                           optional: bool,
+                           expected: Option<&str>,
+                           r#default: Option<&str>) -> GeneratorResult<()>
     {
         let mut writer = self.writer.borrow_mut();
 
@@ -236,7 +264,7 @@ impl<'a> Context<'a> {
         Ok(())
     }
 
-    pub fn write_tag_link(&self, namespace: &str, name: &str) -> GeneratorResult<()> {
+    pub fn write_parent_item(&self, namespace: &str, name: &str) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
         writer.write_str("* [`")?;
         writer.write_str(namespace)?;
@@ -246,6 +274,40 @@ impl<'a> Context<'a> {
         writer.write_str(&namespace.to_lowercase())?;
         writer.write_str(&name.to_lowercase())?;
         writer.write_str(")")?;
+        writer.write_str(self.newline)?;
+        Ok(())
+    }
+
+    pub fn write_child_item(&self, linked: bool, namespace: &str, name: &str, optional: bool, repeated: bool) -> GeneratorResult<()> {
+        let mut writer = self.writer.borrow_mut();
+        if linked {
+            writer.write_str("* [`")?;
+            writer.write_str(namespace)?;
+            writer.write_str(":")?;
+            writer.write_str(name)?;
+            writer.write_str("`](#")?;
+            writer.write_str(&namespace.to_lowercase())?;
+            writer.write_str(&name.to_lowercase())?;
+            writer.write_str(")")?;
+        } else {
+            writer.write_str("* `")?;
+            writer.write_str(namespace)?;
+            writer.write_str(":")?;
+            writer.write_str(name)?;
+            writer.write_str("`")?;
+        }
+
+        if optional || repeated {
+            let mut modifiers = SmallVec::<[&'static str; 2]>::new();
+            if optional { modifiers.push("optional"); }
+            if repeated { modifiers.push("repeated"); }
+
+            writer.write_str(" _(")?;
+            writer.write_str(modifiers.join(", ").as_str())?;
+            writer.write_str(" )_")?;
+        }
+
+        writer.write_str(self.newline)?;
         Ok(())
     }
 
@@ -255,6 +317,12 @@ impl<'a> Context<'a> {
         writer.write_str(self.newline)?;
         writer.write_str(code)?;
         writer.write_str("```")?;
+        writer.write_str(self.newblock)?;
+        Ok(())
+    }
+
+    pub fn write_newblock(&self) -> GeneratorResult<()> {
+        let mut writer = self.writer.borrow_mut();
         writer.write_str(self.newblock)?;
         Ok(())
     }
