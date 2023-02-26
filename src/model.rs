@@ -157,10 +157,10 @@ pub mod loader {
             let mut tag = Tag {
                 id: Uuid::new_v4(),
                 name: tag_schema.id,
-                description: tag_schema.description,
+                description: tag_schema.description.trim().into(),
                 attributes: Default::default(),  // <- still need to process attributes
                 children: Default::default(),  // <- still need to process child tags
-                value: tag_schema.value,
+                value: tag_schema.value.map(|v| v.trim().into()),
                 example: tag_schema.example,
             };
 
@@ -170,11 +170,11 @@ pub mod loader {
                 .map(|attr_schema| {
                     Attribute {
                         name: attr_schema.id,
-                        short_description: attr_schema.brief,
-                        long_description: attr_schema.description,
+                        short_description: attr_schema.brief.trim().into(),
+                        long_description: attr_schema.description.map(|d| d.trim().into()),
                         is_optional: attr_schema.optional.unwrap_or(false),
-                        expected_value: attr_schema.expected,
-                        default_value: attr_schema.default,
+                        expected_value: attr_schema.expected.map(|ev| ev.trim().into()),
+                        default_value: attr_schema.default.map(|dv| dv.trim().into()),
                     }
                 })
                 .collect();

@@ -121,6 +121,7 @@ pub fn generate<'a>(root: &'a model::TagList, options: &'a GeneratorOptions,
                     attr.default_value.as_deref(),
                 )?;
             }
+            context.write_newblock()?;
         }
 
         if let Some(value) = &tag.value {
@@ -239,7 +240,6 @@ impl<'a> Context<'a> {
             write!(writer, "  * _Default value:_ {}{}", r#default, self.newline)?;
         }
 
-        write!(writer, "{}", self.newline)?;
         Ok(())
     }
 
