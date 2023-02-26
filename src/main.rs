@@ -98,7 +98,23 @@ fn exec_check(path: &Path) -> bool {
 #[allow(unused_variables)]  // TODO: Remove this, temporary.
 fn exec_generate(path: &Path, output: &Path) -> bool {
     if let Some(loader::LoadDigest { model, warnings }) = internal_load(path) {
-        true
+        for warning in &warnings {
+            log::warn!("warning: {}", warning);
+        }
+
+        // TODO: Actually use HeaderLevel in the generator.
+        let options = generator::GeneratorOptions {
+            level: generator::HeaderLevel::new(3).unwrap(),
+            crlf: false,
+        };
+
+        match generator::generate(&model, &options, &mut std::io::stdout()) {
+            Ok(_) => true,
+            Err(e) => {
+                log::error!("failed to generate markdown: {}", e);
+                false
+            },
+        }
     } else {
         false
     }
