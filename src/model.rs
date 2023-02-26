@@ -23,6 +23,8 @@ pub struct TagList {
     pub names: HashMap<CompactString, Uuid>,
     /// Tag descriptions within this list.
     pub tags: HashMap<Uuid, Tag>,
+    /// Lookup for child -> parent tag relations.
+    pub parents: HashMap<Uuid, SmallVec<[Uuid; 4]>>,
 }
 
 /// Description of a tag.
@@ -127,11 +129,13 @@ pub mod loader {
             namespace: schema.schema.namespace,
             names: HashMap::new(),
             tags: HashMap::new(),
+            parents: HashMap::new(),
         };
 
         let tag_count = schema.tags.len();
         tl_root.names.reserve(tag_count);
         tl_root.tags.reserve(tag_count);
+        tl_root.parents.reserve(tag_count);
 
         if tl_root.namespace.is_empty() || !tl_root.namespace.is_ascii() {
             log::debug!("schema namespace must be a non-empty ascii sequence");
@@ -192,15 +196,15 @@ pub mod loader {
         // At this point, we can use the uuid <-> name lookup
         // tables, which is needed for child processing.
 
-        for (parent_uuid, child_schemas) in children_temp {
-            let parent_model = tl_root.tags.get_mut(&parent_uuid)
+        for (parent_uuid, child_schemas) in &children_temp {
+            let parent_model = tl_root.tags.get_mut(parent_uuid)
                 .expect("failed to resolve an internal parent reference");
             debug_assert!(parent_model.children.is_empty());
 
             for child_schema in child_schemas {
                 let reference = match tl_root.names.get(&child_schema.r#ref) {
                     Some(child_uuid) => ChildInternal::Resolved { id: *child_uuid },
-                    None => ChildInternal::Unresolved { name: child_schema.r#ref },
+                    None => ChildInternal::Unresolved { name: child_schema.r#ref.clone() },
                 };
                 let child = Child {
                     reference,
@@ -212,9 +216,29 @@ pub mod loader {
                     tl_warnings.push(format!("unresolved child reference: {}->{}", parent_model.name, name));
                 }
 
+                if let ChildInternal::Resolved { id } = &child.reference {
+                    if !tl_root.parents.contains_key(id) {
+                        tl_root.parents.insert(*id, smallvec![]);
+                    }
+                    tl_root.parents.get_mut(id).unwrap().push(*parent_uuid);
+                }
+
                 parent_model.children.push(child);
             }
         }
+
+        let mut root_uuids: SmallVec<[Uuid; 4]> = SmallVec::new();
+        for uuid in tl_root.tags.keys() {
+            if !tl_root.parents.contains_key(uuid) {
+                root_uuids.push(*uuid);
+            }
+        }
+
+        match root_uuids.len() {
+            1 => (),
+            0 => tl_warnings.push(String::from("schema has no root tags, likely self-referential?")),
+            _ => tl_warnings.push(format!("schema has more than one root tag ({})", root_uuids.len())),
+        };
 
         Ok(LoadDigest { model: tl_root, warnings: tl_warnings })
     }

@@ -105,7 +105,7 @@ pub fn generate<'a>(root: &'a model::TagList, options: &'a GeneratorOptions,
         newblock: if options.crlf { "\r\n\r\n" } else { "\n\n" },
     };
 
-    for (_, tag) in &root.tags {
+    for (uuid, tag) in &root.tags {
         context.writer_tag_header(&root.namespace, &tag.name)?;
         context.write_paragraph(&tag.description)?;
 
@@ -130,9 +130,24 @@ pub fn generate<'a>(root: &'a model::TagList, options: &'a GeneratorOptions,
 
         // Parent block is always present.
         {
-            // TODO: Find parents.
             context.write_tag_subheader("Parents")?;
-            context.write_paragraph("TODO: Not yet implemented.")?;
+            match root.parents.get(uuid) {
+                Some(parents) => {
+                    'parents: for parent_uuid in parents {
+                        match root.tags.get(parent_uuid) {
+                            Some(parent_tag) => {
+                                let name = parent_tag.name.as_str();
+                                context.write_tag_link(&root.namespace, name)?;
+                            },
+                            None => {
+                                log::warn!("failed to resolve parent name for {} -> {}", uuid, parent_uuid);
+                                continue 'parents;
+                            }
+                        };
+                    }
+                },
+                None => context.write_paragraph("This tag has no possible parents!")?,
+            }
         }
 
         if let Some(example) = &tag.example {
@@ -218,6 +233,19 @@ impl<'a> Context<'a> {
         }
 
         writer.write_str(self.newline)?;
+        Ok(())
+    }
+
+    pub fn write_tag_link(&self, namespace: &str, name: &str) -> GeneratorResult<()> {
+        let mut writer = self.writer.borrow_mut();
+        writer.write_str("* [`")?;
+        writer.write_str(namespace)?;
+        writer.write_str(":")?;
+        writer.write_str(name)?;
+        writer.write_str("`](#")?;
+        writer.write_str(&namespace.to_lowercase())?;
+        writer.write_str(&name.to_lowercase())?;
+        writer.write_str(")")?;
         Ok(())
     }
 
