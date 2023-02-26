@@ -63,8 +63,10 @@ fn main() {
     }
 
     let success = match &cli_args.command {
-        Command::Check { file } => exec_check(file.as_path()),
-        Command::Generate { .. } => todo!()
+        Command::Check { file } =>
+            exec_check(file.as_path()),
+        Command::Generate { file, output } =>
+            exec_generate(file.as_path(), output.as_deref().unwrap_or(file.as_path())),
     };
 
     if !success {
@@ -76,12 +78,40 @@ fn main() {
 
 
 fn exec_check(path: &Path) -> bool {
+    if let Some(loader::LoadDigest { warnings, .. }) = internal_load(path) {
+        for warning in &warnings {
+            log::warn!("warning: {}", warning);
+        }
+
+        let warning_count = warnings.len();
+        match warning_count {
+            0 => log::info!("file ok"),
+            _ => log::info!("file has warning(s): {}", warning_count),
+        };
+
+        true
+    } else {
+        false
+    }
+}
+
+#[allow(unused_variables)]  // TODO: Remove this, temporary.
+fn exec_generate(path: &Path, output: &Path) -> bool {
+    if let Some(loader::LoadDigest { model, warnings }) = internal_load(path) {
+        true
+    } else {
+        false
+    }
+}
+
+
+fn internal_load(path: &Path) -> Option<loader::LoadDigest> {
     let mut reader = match File::open(path) {
         Ok(file) => file,
         Err(err) => {
             log::error!("failed to open source file '{}'", path.to_string_lossy());
             log::error!("error: {}", err.to_string());
-            return false;
+            return None;
         }
     };
 
@@ -90,29 +120,16 @@ fn exec_check(path: &Path) -> bool {
         Err(err) => {
             log::error!("failed to parse tag list from source file '{}'", path.to_string_lossy());
             log::error!("error: {}", err.to_string());
-            return false;
+            return None;
         }
     };
 
-    let warning_count;
     match loader::load_from(root) {
-        Ok(loader::LoadDigest { warnings, .. }) => {
-            warning_count = warnings.len();
-            for warning in &warnings {
-                log::warn!("model warning: {}", warning);
-            }
-        }
-        Err(err) => {
+        Ok(digest) => Some(digest),
+        Err(error) => {
             log::error!("failed to load model from deserialized schema '{}'", path.to_string_lossy());
-            log::error!("error: {:?}", err);
-            return false;
+            log::error!("error: {:?}", error);
+            None
         }
-    };
-
-    match warning_count {
-        0 => log::info!("file ok"),
-        _ => log::info!("file has warning(s): {}", warning_count),
-    };
-
-    true
+    }
 }
