@@ -96,7 +96,7 @@ impl fmt::Display for HeaderLevel {
 
 /// Generate Markdown content into `formatter` from the `root` tag list using the given `options`.
 pub fn generate<'a>(root: &'a model::TagList, options: &'a GeneratorOptions,
-                    formatter: &'a mut fmt::Formatter<'a>) -> GeneratorResult<()>
+                    formatter: &'a mut dyn io::Write) -> GeneratorResult<()>
 {
     let context = Context {
         options,
@@ -189,7 +189,7 @@ pub fn generate<'a>(root: &'a model::TagList, options: &'a GeneratorOptions,
 
 struct Context<'a> {
     options: &'a GeneratorOptions,
-    writer: RefCell<&'a mut fmt::Formatter<'a>>,
+    writer: RefCell<&'a mut dyn io::Write>,
     newline: &'static str,
     newblock: &'static str,
 }
@@ -239,7 +239,7 @@ impl<'a> Context<'a> {
             write!(writer, "  * _Default value:_ {}{}", r#default, self.newline)?;
         }
 
-        writer.write_str(self.newline)?;
+        write!(writer, "{}", self.newline)?;
         Ok(())
     }
 
