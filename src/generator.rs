@@ -198,28 +198,19 @@ struct Context<'a> {
 impl<'a> Context<'a> {
     pub fn writer_tag_header(&self, namespace: &str, title: &str) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
-        writer.write_str("### `")?;
-        writer.write_str(namespace)?;
-        writer.write_str(":")?;
-        writer.write_str(title)?;
-        writer.write_str("`")?;
-        writer.write_str(self.newblock)?;
+        write!(writer, "### `{}:{}`{}", namespace, title, self.newblock)?;
         Ok(())
     }
 
     pub fn write_tag_subheader(&self, text: &str) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
-        writer.write_str("_**")?;
-        writer.write_str(text)?;
-        writer.write_str(":**_")?;
-        writer.write_str(self.newblock)?;
+        write!(writer, "_**{}:**_{}", text, self.newblock)?;
         Ok(())
     }
 
     pub fn write_paragraph(&self, text: &str) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
-        writer.write_str(text)?;
-        writer.write_str(self.newblock)?;
+        write!(writer, "{}{}", text, self.newblock)?;
         Ok(())
     }
 
@@ -233,31 +224,19 @@ impl<'a> Context<'a> {
     {
         let mut writer = self.writer.borrow_mut();
 
-        writer.write_str("* `")?;
-        writer.write_str(name)?;
-        writer.write_str("` - ")?;
-        writer.write_str(brief)?;
-        if optional {
-            writer.write_str(" _(optional)_")?;
-        }
-        writer.write_str(self.newline)?;
+        let optional_text = if optional { " _(optional)_" } else { "" };
+        write!(writer, "* `{}` - {}{}{}", name, brief, optional_text, self.newline)?;
 
         if let Some(desc) = desc {
-            writer.write_str("  * ")?;
-            writer.write_str(desc)?;
-            writer.write_str(self.newline)?;
+            write!(writer, "  * {}{}", desc, self.newline)?;
         }
 
         if let Some(expected) = expected {
-            writer.write_str("  * _Expected value:_ ")?;
-            writer.write_str(expected)?;
-            writer.write_str(self.newline)?;
+            write!(writer, "  * _Expected value:_ {}{}", expected, self.newline)?;
         }
 
         if let Some(r#default) = r#default {
-            writer.write_str("  * _Default value:_ ")?;
-            writer.write_str(r#default)?;
-            writer.write_str(self.newline)?;
+            write!(writer, "  * _Default value:_ {}{}", r#default, self.newline)?;
         }
 
         writer.write_str(self.newline)?;
@@ -266,64 +245,38 @@ impl<'a> Context<'a> {
 
     pub fn write_parent_item(&self, namespace: &str, name: &str) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
-        writer.write_str("* [`")?;
-        writer.write_str(namespace)?;
-        writer.write_str(":")?;
-        writer.write_str(name)?;
-        writer.write_str("`](#")?;
-        writer.write_str(&namespace.to_lowercase())?;
-        writer.write_str(&name.to_lowercase())?;
-        writer.write_str(")")?;
-        writer.write_str(self.newline)?;
+        write!(writer, "* `[{}:{}](#{}{})`{}", namespace, name, &namespace.to_lowercase(), &name.to_lowercase(), self.newline)?;
         Ok(())
     }
 
     pub fn write_child_item(&self, linked: bool, namespace: &str, name: &str, optional: bool, repeated: bool) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
         if linked {
-            writer.write_str("* [`")?;
-            writer.write_str(namespace)?;
-            writer.write_str(":")?;
-            writer.write_str(name)?;
-            writer.write_str("`](#")?;
-            writer.write_str(&namespace.to_lowercase())?;
-            writer.write_str(&name.to_lowercase())?;
-            writer.write_str(")")?;
+            write!(writer, "* `[{}:{}](#{}{})`", namespace, name, &namespace.to_lowercase(), &name.to_lowercase())?;
         } else {
-            writer.write_str("* `")?;
-            writer.write_str(namespace)?;
-            writer.write_str(":")?;
-            writer.write_str(name)?;
-            writer.write_str("`")?;
+            write!(writer, "* `{}:{}`", namespace, name)?;
         }
 
         if optional || repeated {
             let mut modifiers = SmallVec::<[&'static str; 2]>::new();
             if optional { modifiers.push("optional"); }
             if repeated { modifiers.push("repeated"); }
-
-            writer.write_str(" _(")?;
-            writer.write_str(modifiers.join(", ").as_str())?;
-            writer.write_str(" )_")?;
+            write!(writer, " _({})_", modifiers.join(", "))?;
         }
 
-        writer.write_str(self.newline)?;
+        write!(writer, "{}", self.newline)?;
         Ok(())
     }
 
     pub fn write_xml(&self, code: &str) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
-        writer.write_str("```xml")?;
-        writer.write_str(self.newline)?;
-        writer.write_str(code)?;
-        writer.write_str("```")?;
-        writer.write_str(self.newblock)?;
+        write!(writer, "```xml{}{}{}```{}", self.newline, code, self.newline, self.newblock)?;
         Ok(())
     }
 
     pub fn write_newblock(&self) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
-        writer.write_str(self.newblock)?;
+        write!(writer, "{}", self.newblock)?;
         Ok(())
     }
 }
