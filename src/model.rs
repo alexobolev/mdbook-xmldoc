@@ -19,10 +19,10 @@ pub fn is_supported(version: &str) -> bool {
 pub struct TagList {
     /// The XML namespace of all tags in this list.
     pub namespace: CompactString,
-    /// Mapping between tag names and internal ids.
-    pub names: HashMap<CompactString, Uuid>,
     /// Tag descriptions within this list.
     pub tags: HashMap<Uuid, Tag>,
+    /// Mapping between tag names and internal ids.
+    pub names: HashMap<CompactString, Uuid>,
     /// Lookup for child -> parent tag relations.
     pub parents: HashMap<Uuid, SmallVec<[Uuid; 4]>>,
 }
@@ -44,6 +44,14 @@ pub struct Tag {
     pub value: Option<String>,
     /// An abstract XML example code demonstrating this tag.
     pub example: Option<String>,
+    /// Order of the tag definition in its source file.
+    index_internal: i32,
+}
+impl Tag {
+    #[inline]
+    pub fn index(&self) -> i32 {
+        self.index_internal
+    }
 }
 
 /// Description of an allowed (or expected) tag attribute.
@@ -127,8 +135,8 @@ pub mod loader {
         let mut tl_warnings = SmallVec::new();
         let mut tl_root = TagList {
             namespace: schema.schema.namespace,
-            names: HashMap::new(),
             tags: HashMap::new(),
+            names: HashMap::new(),
             parents: HashMap::new(),
         };
 
@@ -153,7 +161,7 @@ pub mod loader {
         let mut children_temp = HashMap::new();
 
         debug_assert!(tl_root.names.is_empty());
-        for tag_schema in schema.tags {
+        for (index, tag_schema) in schema.tags.into_iter().enumerate() {
             let mut tag = Tag {
                 id: Uuid::new_v4(),
                 name: tag_schema.id,
@@ -162,6 +170,7 @@ pub mod loader {
                 children: Default::default(),  // <- still need to process child tags
                 value: tag_schema.value.map(|v| v.trim().into()),
                 example: tag_schema.example,
+                index_internal: index as i32 + 1,
             };
 
             tag.attributes = tag_schema.attributes

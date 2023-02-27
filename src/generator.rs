@@ -105,7 +105,18 @@ pub fn generate<'a>(root: &'a model::TagList, options: &'a GeneratorOptions,
         newblock: if options.crlf { "\r\n\r\n" } else { "\n\n" },
     };
 
-    for (uuid, tag) in &root.tags {
+    // Instead of preserving order on model construction, it is recovered here.
+    // To consider: move this to model, or rework the model to preserve the order inherently.
+    let ordered_tags = {
+        type TagPair<'a> = (&'a uuid::Uuid, &'a model::Tag);
+        let mut pairs: Vec<TagPair> = root.tags.iter().collect();
+        pairs.sort_by(|a: &TagPair, b: &TagPair| {
+            a.1.index().partial_cmp(&b.1.index()).unwrap()
+        });
+        pairs
+    };
+
+    for (uuid, tag) in ordered_tags {
         context.writer_tag_header(&root.namespace, &tag.name)?;
         context.write_paragraph(&tag.description)?;
 
