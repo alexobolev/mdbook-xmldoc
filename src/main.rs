@@ -11,6 +11,7 @@ mod model;
 mod schema;
 
 use std::fs::File;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -35,7 +36,7 @@ enum Command {
     /// Checks that a given file is a valid .yml tag list.
     Check { file: PathBuf },
     /// Generates a pure markdown file from the given file.
-    Generate { file: PathBuf, output: Option<PathBuf> },
+    GenerateInto { file: PathBuf, output: PathBuf },
 }
 
 
@@ -65,8 +66,8 @@ fn main() {
     let success = match &cli_args.command {
         Command::Check { file } =>
             exec_check(file.as_path()),
-        Command::Generate { file, output } =>
-            exec_generate(file.as_path(), output.as_deref().unwrap_or(file.as_path())),
+        Command::GenerateInto { file, output } =>
+            exec_generate(file.as_path(), output.as_path()),
     };
 
     if !success {
@@ -95,7 +96,6 @@ fn exec_check(path: &Path) -> bool {
     }
 }
 
-#[allow(unused_variables)]  // TODO: Remove this, temporary.
 fn exec_generate(path: &Path, output: &Path) -> bool {
     if let Some(loader::LoadDigest { model, warnings }) = internal_load(path) {
         for warning in &warnings {
@@ -107,12 +107,27 @@ fn exec_generate(path: &Path, output: &Path) -> bool {
             crlf: false,
         };
 
-        match generator::generate(&model, &options, &mut std::io::stdout()) {
-            Ok(_) => true,
-            Err(e) => {
-                log::error!("failed to generate markdown: {}", e);
+        let generator_result = if output.to_string_lossy() == "(stdout)" {
+            generator::generate(&model, &options, &mut io::stdout())
+        } else {
+            match File::create(output) {
+                Ok(file) => {
+                    let mut writer = io::BufWriter::new(file);
+                    generator::generate(&model, &options, &mut writer)
+                },
+                Err(error) => {
+                    log::error!("failed to create or truncate output file: {}", error);
+                    return false;
+                }
+            }
+        };
+
+        match generator_result {
+            Ok(()) => true,
+            Err(error) => {
+                log::error!("failed to generate markdown: {}", error);
                 false
-            },
+            }
         }
     } else {
         false
