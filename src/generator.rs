@@ -85,6 +85,20 @@ impl HeaderLevel {
     pub fn next(&self) -> GeneratorResult<HeaderLevel> {
         Self::new(self.0 + 1)
     }
+
+    /// Get the Markdown `#` prefix for this heading level.
+    #[inline]
+    pub fn get_prefix(&self) -> &'static str {
+        match self.0 {
+            1 => "#",
+            2 => "##",
+            3 => "###",
+            4 => "####",
+            5 => "#####",
+            6 => "######",
+            _ => panic!("invalid internal header level"),
+        }
+    }
 }
 
 impl fmt::Display for HeaderLevel {
@@ -210,7 +224,7 @@ struct Context<'a> {
 impl<'a> Context<'a> {
     pub fn writer_tag_header(&self, namespace: &str, title: &str) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
-        write!(writer, "### `{}:{}`{}", namespace, title, self.newblock)?;
+        write!(writer, "{} `{}:{}`{}", self.options.level.get_prefix(), namespace, title, self.newblock)?;
         Ok(())
     }
 

@@ -102,9 +102,8 @@ fn exec_generate(path: &Path, output: &Path) -> bool {
             log::warn!("warning: {}", warning);
         }
 
-        // TODO: Actually use HeaderLevel in the generator.
         let options = generator::GeneratorOptions {
-            level: generator::HeaderLevel::new(3).unwrap(),
+            level: generator::HeaderLevel::new(1).unwrap(),
             crlf: false,
         };
 
