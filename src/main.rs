@@ -6,10 +6,12 @@
 //! tool and an `mdBook` preprocessor for generating simplistic static XML document
 //! reference in an opinionated markdown format.
 
+mod generator;
 mod model;
 mod schema;
 
 use std::fs::File;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -34,7 +36,7 @@ enum Command {
     /// Checks that a given file is a valid .yml tag list.
     Check { file: PathBuf },
     /// Generates a pure markdown file from the given file.
-    Generate { file: PathBuf, output: Option<PathBuf> },
+    GenerateInto { file: PathBuf, output: PathBuf },
 }
 
 
@@ -56,14 +58,16 @@ fn main() {
     // TODO: Set up colored output when not piping out.
 
     if let Err(err) = log_dispatch.apply() {
-        eprintln!("failed to configure log: {}", err.to_string());
+        eprintln!("failed to configure log: {}", err);
         eprintln!("exiting...");
         process::exit(3);
     }
 
     let success = match &cli_args.command {
-        Command::Check { file } => exec_check(file.as_path()),
-        Command::Generate { .. } => todo!()
+        Command::Check { file } =>
+            exec_check(file.as_path()),
+        Command::GenerateInto { file, output } =>
+            exec_generate(file.as_path(), output.as_path()),
     };
 
     if !success {
@@ -75,12 +79,69 @@ fn main() {
 
 
 fn exec_check(path: &Path) -> bool {
+    if let Some(loader::LoadDigest { warnings, .. }) = internal_load(path) {
+        for warning in &warnings {
+            log::warn!("warning: {}", warning);
+        }
+
+        let warning_count = warnings.len();
+        match warning_count {
+            0 => log::info!("file ok"),
+            _ => log::info!("file has warning(s): {}", warning_count),
+        };
+
+        true
+    } else {
+        false
+    }
+}
+
+fn exec_generate(path: &Path, output: &Path) -> bool {
+    if let Some(loader::LoadDigest { model, warnings }) = internal_load(path) {
+        for warning in &warnings {
+            log::warn!("warning: {}", warning);
+        }
+
+        let options = generator::GeneratorOptions {
+            level: generator::HeaderLevel::new(1).unwrap(),
+            crlf: false,
+        };
+
+        let generator_result = if output.to_string_lossy() == "(stdout)" {
+            generator::generate(&model, &options, &mut io::stdout())
+        } else {
+            match File::create(output) {
+                Ok(file) => {
+                    let mut writer = io::BufWriter::new(file);
+                    generator::generate(&model, &options, &mut writer)
+                },
+                Err(error) => {
+                    log::error!("failed to create or truncate output file: {}", error);
+                    return false;
+                }
+            }
+        };
+
+        match generator_result {
+            Ok(()) => true,
+            Err(error) => {
+                log::error!("failed to generate markdown: {}", error);
+                false
+            }
+        }
+    } else {
+        false
+    }
+}
+
+
+fn internal_load(path: &Path) -> Option<loader::LoadDigest> {
     let mut reader = match File::open(path) {
         Ok(file) => file,
         Err(err) => {
             log::error!("failed to open source file '{}'", path.to_string_lossy());
             log::error!("error: {}", err.to_string());
-            return false;
+            return None;
         }
     };
 
@@ -89,29 +150,16 @@ fn exec_check(path: &Path) -> bool {
         Err(err) => {
             log::error!("failed to parse tag list from source file '{}'", path.to_string_lossy());
             log::error!("error: {}", err.to_string());
-            return false;
+            return None;
         }
     };
 
-    let warning_count;
     match loader::load_from(root) {
-        Ok(loader::LoadDigest { warnings, .. }) => {
-            warning_count = warnings.len();
-            for warning in &warnings {
-                log::warn!("model warning: {warning}");
-            }
-        }
-        Err(err) => {
+        Ok(digest) => Some(digest),
+        Err(error) => {
             log::error!("failed to load model from deserialized schema '{}'", path.to_string_lossy());
-            log::error!("error: {:?}", err);
-            return false;
+            log::error!("error: {:?}", error);
+            None
         }
-    };
-
-    match warning_count {
-        0 => log::info!("file ok"),
-        _ => log::info!("file has warning(s): {warning_count}"),
-    };
-
-    return true;
+    }
 }
