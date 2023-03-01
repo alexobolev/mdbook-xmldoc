@@ -27,6 +27,10 @@ struct Cli {
     /// Provide additional diagnostics. DISABLE FOR MDBOOK!
     #[arg(long)]
     verbose: bool,
+    /// Disable colored logging, useful when piping output to files.
+    #[arg(long)]
+    no_colors: bool,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -42,20 +46,42 @@ enum Command {
 
 fn main() {
     let cli_args = Cli::parse();
-    let log_dispatch = fern::Dispatch::new()
-        .format(|out, message, record| {
-           out.finish(format_args!(
-               "[{}][{}] {}",
-               chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-               record.level(),
-               message,
-           ))
-        })
-        .level(if cli_args.verbose { log::LevelFilter::Debug } else { log::LevelFilter::Info })
-        .chain(std::io::stdout());
+    let log_dispatch = {
+        let get_filter = |verbose| match verbose {
+            false => log::LevelFilter::Info,
+            true => log::LevelFilter::Trace,
+        };
+
+        let get_prefix = |level| match level {
+            log::Level::Error => "Error: ",
+            log::Level::Warn => "Warning: ",
+            log::Level::Info => "",
+            log::Level::Debug => "Debug info: ",
+            log::Level::Trace => "TRACING: "
+        };
+
+        let no_colors = cli_args.no_colors;
+        let colors = fern::colors::ColoredLevelConfig::new()
+            .error(fern::colors::Color::Red)
+            .warn(fern::colors::Color::Yellow)
+            .trace(fern::colors::Color::BrightBlack);
+
+        fern::Dispatch::new()
+            .format(move |out, message, record| {
+                let prefix = get_prefix(record.level());
+                if !no_colors {
+                    let color = colors.get_color(&record.level());
+                    out.finish(format_args!("\x1B[{}m{}{} \x1B[0m",
+                        color.to_fg_str(), prefix, message))
+                } else {
+                    out.finish(format_args!("{}{}", prefix, message))
+                }
+            })
+            .level(get_filter(cli_args.verbose))
+            .chain(io::stdout())
+    };
 
     // TODO: Route warn and error logs to stderr.
-    // TODO: Set up colored output when not piping out.
 
     if let Err(err) = log_dispatch.apply() {
         eprintln!("failed to configure log: {}", err);
@@ -72,7 +98,9 @@ fn main() {
 
     if !success {
         log::error!("mdbook-xmldoc failed, check the logs!");
-        log::error!("if the logs are empty, run with --verbose");
+        if !cli_args.verbose {
+            log::error!("if the logs are empty, run with --verbose");
+        }
         process::exit(1);
     }
 }
@@ -158,7 +186,7 @@ fn internal_load(path: &Path) -> Option<loader::LoadDigest> {
         Ok(digest) => Some(digest),
         Err(error) => {
             log::error!("failed to load model from deserialized schema '{}'", path.to_string_lossy());
-            log::error!("error: {:?}", error);
+            log::error!("reason: {:?}", error);
             None
         }
     }
