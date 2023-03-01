@@ -108,11 +108,6 @@ pub mod loader {
         /// Non-fatal issues.
         pub warnings: SmallVec<[String; 4]>,
     }
-    impl LoadDigest {
-        pub fn has_warnings(&self) -> bool {
-            !self.warnings.is_empty()
-        }
-    }
 
     /// Possible fatal errors produced by [`load_from`].
     #[derive(Debug)]
@@ -125,7 +120,10 @@ pub mod loader {
     /// Load a [`TagList`] model from a deserialized `schema` instance.
     pub fn load_from(schema: crate::schema::FileRoot) -> Result<LoadDigest, LoadError> {
         let schema_version = schema.schema.version;
+        log::trace!("loading schema version = {}", schema_version);
+
         if !is_supported(schema_version.as_str()) {
+            log::trace!("schema version is unsupported");
             return Err(LoadError::VersionUnsupported {
                 found: schema_version,
                 expected: CompactString::from(VERSION)
@@ -141,6 +139,8 @@ pub mod loader {
         };
 
         let tag_count = schema.tags.len();
+        log::trace!("found {} tag(s), reserving hashmaps...", tag_count);
+
         tl_root.names.reserve(tag_count);
         tl_root.tags.reserve(tag_count);
         tl_root.parents.reserve(tag_count);
@@ -160,7 +160,9 @@ pub mod loader {
 
         let mut children_temp = HashMap::new();
 
+        log::trace!("processing tag schemas...");
         debug_assert!(tl_root.names.is_empty());
+
         for (index, tag_schema) in schema.tags.into_iter().enumerate() {
             let mut tag = Tag {
                 id: Uuid::new_v4(),
@@ -195,7 +197,9 @@ pub mod loader {
             }
         }
 
+        log::trace!("building the name mapping...");
         debug_assert!(tl_root.names.is_empty());
+
         for (uuid, tag) in &tl_root.tags {
             if tl_root.names.insert(tag.name.clone(), *uuid).is_some() {
                 panic!("non-unique name -> uuid mapping?!");
@@ -205,12 +209,15 @@ pub mod loader {
         // At this point, we can use the uuid <-> name lookup
         // tables, which is needed for child processing.
 
+        log::trace!("processing child <-> parent relations...");
+
         for (parent_uuid, child_schemas) in &children_temp {
             let parent_model = tl_root.tags.get_mut(parent_uuid)
                 .expect("failed to resolve an internal parent reference");
             debug_assert!(parent_model.children.is_empty());
 
             for child_schema in child_schemas {
+                // TODO: Add a warning for invalid child names.
                 let reference = match tl_root.names.get(&child_schema.r#ref) {
                     Some(child_uuid) => ChildInternal::Resolved { id: *child_uuid },
                     None => ChildInternal::Unresolved { name: child_schema.r#ref.clone() },
@@ -235,6 +242,8 @@ pub mod loader {
                 parent_model.children.push(child);
             }
         }
+
+        log::trace!("discovering root tags...");
 
         let root_pairs = tl_root.tags.values()
             .map(|tag| (tag.id, tag.name.clone()))

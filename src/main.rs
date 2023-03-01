@@ -104,7 +104,9 @@ fn main() {
             exec_generate(file.as_path(), output.as_path()),
     };
 
-    if !success {
+    if success {
+        log::debug!("mdbook-xmldoc ran successfully")
+    } else {
         log::error!("mdbook-xmldoc failed, check the logs!");
         if !cli_args.verbose {
             log::error!("if the logs are empty, run with --verbose");
@@ -115,6 +117,8 @@ fn main() {
 
 
 fn exec_check(path: &Path) -> bool {
+    log::trace!("checking file at {}", path.to_string_lossy());
+
     if let Some(loader::LoadDigest { warnings, .. }) = internal_load(path) {
         for warning in &warnings {
             log::warn!("warning: {}", warning);
@@ -123,7 +127,7 @@ fn exec_check(path: &Path) -> bool {
         let warning_count = warnings.len();
         match warning_count {
             0 => log::info!("file ok"),
-            _ => log::info!("file has warning(s): {}", warning_count),
+            _ => log::warn!("file has warning(s): {}", warning_count),
         };
 
         true
@@ -133,6 +137,8 @@ fn exec_check(path: &Path) -> bool {
 }
 
 fn exec_generate(path: &Path, output: &Path) -> bool {
+    log::trace!("generating markdown from {} into {}", path.to_string_lossy(), output.to_string_lossy());
+
     if let Some(loader::LoadDigest { model, warnings }) = internal_load(path) {
         for warning in &warnings {
             log::warn!("warning: {}", warning);
@@ -144,10 +150,13 @@ fn exec_generate(path: &Path, output: &Path) -> bool {
         };
 
         let generator_result = if output.to_string_lossy() == "(stdout)" {
+            log::trace!("selected standard output as the output writer");
             generator::generate(&model, &options, &mut io::stdout())
         } else {
+            log::trace!("selected file {} as the output writer", output.to_string_lossy());
             match File::create(output) {
                 Ok(file) => {
+                    log::trace!("file opened successfully");
                     let mut writer = io::BufWriter::new(file);
                     generator::generate(&model, &options, &mut writer)
                 },
@@ -176,22 +185,29 @@ fn internal_load(path: &Path) -> Option<loader::LoadDigest> {
         Ok(file) => file,
         Err(err) => {
             log::error!("failed to open source file '{}'", path.to_string_lossy());
-            log::error!("error: {}", err.to_string());
+            log::error!("reason: {}", err.to_string());
             return None;
         }
     };
+
+    log::trace!("input file opened successfully");
 
     let root: schema::FileRoot = match serde_yaml::from_reader(&mut reader) {
         Ok(root) => root,
         Err(err) => {
             log::error!("failed to parse tag list from source file '{}'", path.to_string_lossy());
-            log::error!("error: {}", err.to_string());
+            log::error!("reason: {}", err.to_string());
             return None;
         }
     };
 
+    log::trace!("schema parsed successfully");
+
     match loader::load_from(root) {
-        Ok(digest) => Some(digest),
+        Ok(digest) => {
+            log::trace!("model loaded successfully");
+            Some(digest)
+        },
         Err(error) => {
             log::error!("failed to load model from deserialized schema '{}'", path.to_string_lossy());
             log::error!("reason: {:?}", error);
