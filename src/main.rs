@@ -32,7 +32,7 @@ struct Cli {
     no_colors: bool,
 
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -43,11 +43,16 @@ enum Command {
         file: PathBuf
     },
     /// Generates a pure markdown file from the given file.
-    GenerateInto {
+    Generate {
         /// Path to input .yml file.
         file: PathBuf,
         /// Path to output file, or "(stdout)".
         output: PathBuf,
+    },
+    /// (mdBook preprocessor) Checks an mdBook renderer is supported.
+    Supports {
+        /// Name of the renderer.
+        renderer: String,
     },
 }
 
@@ -98,23 +103,44 @@ fn main() {
     }
 
     let success = match &cli_args.command {
-        Command::Check { file } =>
+        Some(Command::Check { file }) =>
             exec_check(file.as_path()),
-        Command::GenerateInto { file, output } =>
+        Some(Command::Generate { file, output }) =>
             exec_generate(file.as_path(), output.as_path()),
+        Some(Command::Supports { renderer }) =>
+            mdexec_supports(renderer),
+        None =>
+            mdexec_preprocess(),
     };
 
-    if success {
-        log::debug!("mdbook-xmldoc ran successfully")
-    } else {
+    if !success {
         log::error!("mdbook-xmldoc failed, check the logs!");
         if !cli_args.verbose {
-            log::error!("if the logs are empty, run with --verbose");
+            log::error!("  if the logs are empty, run with --verbose");
         }
         process::exit(1);
     }
 }
 
+
+fn mdexec_supports(renderer: &str) -> bool {
+    let supports = renderer.trim().to_lowercase() == "html";
+    match supports {
+        true => {
+            log::info!("the given renderer '{}' is supported", renderer);
+            true
+        },
+        false => {
+            log::warn!("the given renderer '{}' is not supported", renderer);
+            false
+        },
+    }
+}
+
+fn mdexec_preprocess() -> bool {
+    // TODO: Implement!
+    true
+}
 
 fn exec_check(path: &Path) -> bool {
     log::trace!("checking file at {}", path.to_string_lossy());
