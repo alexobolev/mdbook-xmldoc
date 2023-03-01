@@ -9,13 +9,12 @@ repository = "https://github.com/alexobolev/mdbook-xmldoc"
 edition = "2021"
 
 [dependencies]
-chrono = "0.4.23"  # TODO: Remove.
 clap = { version = "4.1.6", features = ["derive"] }
 compact_str = { version = "0.7.0", features = ["serde"] }
-fern = { version = "0.6.1", features = ["colored"] }  # TODO: Consider removal?
-log = "0.4.17"  # TODO: Consider removal?
+fern = { version = "0.6.1", features = ["colored"] }
+log = "0.4.17"
 mdbook = "0.4.27"
-pulldown-cmark = { version = "0.9.2", features = ["simd"] }  # TODO: Remove.
+pulldown-cmark = { version = "0.9.2", features = ["simd"] }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_yaml = "0.9.17"
 smallvec = { version = "1.10.0", features = ["serde"] }
