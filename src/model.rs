@@ -236,17 +236,23 @@ pub mod loader {
             }
         }
 
-        let mut root_uuids: SmallVec<[Uuid; 4]> = SmallVec::new();
-        for uuid in tl_root.tags.keys() {
-            if !tl_root.parents.contains_key(uuid) {
-                root_uuids.push(*uuid);
-            }
-        }
+        let root_pairs = tl_root.tags.values()
+            .map(|tag| (tag.id, tag.name.clone()))
+            .filter(|(id, _)| !tl_root.parents.contains_key(id))
+            .collect::<SmallVec<[(Uuid, CompactString); 4]>>();
 
-        match root_uuids.len() {
+        match root_pairs.len() {
             1 => (),
-            0 => tl_warnings.push(String::from("schema has no root tags, likely self-referential?")),
-            _ => tl_warnings.push(format!("schema has more than one root tag ({})", root_uuids.len())),
+            0 => {
+                tl_warnings.push(String::from("schema has no root tags, likely self-referential?"))
+            },
+            c => {
+                let names_list = root_pairs.into_iter()
+                    .map(|(_, name)| name)
+                    .collect::<SmallVec<[CompactString; 4]>>()
+                    .join(", ");
+                tl_warnings.push(format!("schema has more than one root tag ({}): {}", c, names_list))
+            },
         };
 
         Ok(LoadDigest { model: tl_root, warnings: tl_warnings })
