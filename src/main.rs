@@ -38,9 +38,17 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Checks that a given file is a valid .yml tag list.
-    Check { file: PathBuf },
+    Check {
+        /// Path to checked .yml file.
+        file: PathBuf
+    },
     /// Generates a pure markdown file from the given file.
-    GenerateInto { file: PathBuf, output: PathBuf },
+    GenerateInto {
+        /// Path to input .yml file.
+        file: PathBuf,
+        /// Path to output file, or "(stdout)".
+        output: PathBuf,
+    },
 }
 
 
