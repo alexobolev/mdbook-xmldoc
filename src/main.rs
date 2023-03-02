@@ -49,7 +49,7 @@ enum Command {
         /// Path to output file, or "(stdout)".
         output: PathBuf,
     },
-    /// (mdBook preprocessor) Checks an mdBook renderer is supported.
+    /// (mdBook) Checks if an mdBook renderer is supported.
     Supports {
         /// Name of the renderer.
         renderer: String,
@@ -69,7 +69,7 @@ fn main() {
             log::Level::Error => "Error: ",
             log::Level::Warn => "Warning: ",
             log::Level::Info => "",
-            log::Level::Debug => "Debug info: ",
+            log::Level::Debug => "Debug: ",
             log::Level::Trace => "TRACING: "
         };
 
@@ -78,6 +78,13 @@ fn main() {
             .error(fern::colors::Color::Red)
             .warn(fern::colors::Color::Yellow)
             .trace(fern::colors::Color::BrightBlack);
+
+        let stdout_dispatch = fern::Dispatch::new()
+            .filter(|metadata| metadata.level() < log::Level::Error)
+            .chain(io::stdout());
+        let stderr_dispatch = fern::Dispatch::new()
+            .filter(|metadata| metadata.level() >= log::Level::Error)
+            .chain(io::stderr());
 
         fern::Dispatch::new()
             .format(move |out, message, record| {
@@ -91,10 +98,9 @@ fn main() {
                 }
             })
             .level(get_filter(cli_args.verbose))
-            .chain(io::stdout())
+            .chain(stdout_dispatch)
+            .chain(stderr_dispatch)
     };
-
-    // TODO: Route warn and error logs to stderr.
 
     if let Err(err) = log_dispatch.apply() {
         eprintln!("failed to configure log: {}", err);
@@ -108,9 +114,9 @@ fn main() {
         Some(Command::Generate { file, output }) =>
             exec_generate(file.as_path(), output.as_path()),
         Some(Command::Supports { renderer }) =>
-            mdexec_supports(renderer),
+            exec_supports(renderer),
         None =>
-            mdexec_preprocess(),
+            exec_preprocess(),
     };
 
     if !success {
@@ -122,25 +128,6 @@ fn main() {
     }
 }
 
-
-fn mdexec_supports(renderer: &str) -> bool {
-    let supports = renderer.trim().to_lowercase() == "html";
-    match supports {
-        true => {
-            log::info!("the given renderer '{}' is supported", renderer);
-            true
-        },
-        false => {
-            log::warn!("the given renderer '{}' is not supported", renderer);
-            false
-        },
-    }
-}
-
-fn mdexec_preprocess() -> bool {
-    // TODO: Implement!
-    true
-}
 
 fn exec_check(path: &Path) -> bool {
     log::trace!("checking file at {}", path.to_string_lossy());
@@ -203,6 +190,25 @@ fn exec_generate(path: &Path, output: &Path) -> bool {
     } else {
         false
     }
+}
+
+fn exec_supports(renderer: &str) -> bool {
+    let supports = renderer.trim().to_lowercase() == "html";
+    match supports {
+        true => {
+            log::info!("the given renderer '{}' is supported", renderer);
+            true
+        },
+        false => {
+            log::warn!("the given renderer '{}' is not supported", renderer);
+            false
+        },
+    }
+}
+
+fn exec_preprocess() -> bool {
+    // TODO: Implement!
+    true
 }
 
 
