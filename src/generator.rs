@@ -270,14 +270,14 @@ impl<'a> Context<'a> {
 
     pub fn write_parent_item(&self, namespace: &str, name: &str) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
-        write!(writer, "* `[{}:{}](#{}{})`{}", namespace, name, &namespace.to_lowercase(), &name.to_lowercase(), self.newline)?;
+        write!(writer, "* [`{}:{}`](#{}{}){}", namespace, name, &namespace.to_lowercase(), &name.to_lowercase(), self.newline)?;
         Ok(())
     }
 
     pub fn write_child_item(&self, linked: bool, namespace: &str, name: &str, optional: bool, repeated: bool) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
         if linked {
-            write!(writer, "* `[{}:{}](#{}{})`", namespace, name, &namespace.to_lowercase(), &name.to_lowercase())?;
+            write!(writer, "* [`{}:{}`](#{}{})", namespace, name, &namespace.to_lowercase(), &name.to_lowercase())?;
         } else {
             write!(writer, "* `{}:{}`", namespace, name)?;
         }
@@ -295,7 +295,7 @@ impl<'a> Context<'a> {
 
     pub fn write_xml(&self, code: &str) -> GeneratorResult<()> {
         let mut writer = self.writer.borrow_mut();
-        write!(writer, "```xml{}{}{}```{}", self.newline, code, self.newline, self.newblock)?;
+        write!(writer, "```xml{}{}{}```{}", self.newline, code.trim_end(), self.newline, self.newblock)?;
         Ok(())
     }
 
